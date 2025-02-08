@@ -1,7 +1,12 @@
+import 'dart:io';
+
+import 'package:chat_app/widgets/user_image_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 final _firebase = FirebaseAuth.instance;
+final supbase = Supabase.instance.client;
 
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});
@@ -17,10 +22,11 @@ class _AuthScreenState extends State<AuthScreen> {
   final _formKey = GlobalKey<FormState>();
   var _enteredEmail = "";
   var _entredPassword = "";
+  File? _selectedImage;
 
   void _submit() async {
     final isValid = _formKey.currentState!.validate();
-    if (!isValid) {
+    if (!isValid || !_isLogin && _selectedImage == null) {
       return;
     }
 
@@ -32,6 +38,14 @@ class _AuthScreenState extends State<AuthScreen> {
       } else {
         final userCredentials = await _firebase.createUserWithEmailAndPassword(
             email: _enteredEmail, password: _entredPassword);
+        String fileName = "uploads/${userCredentials.user!.uid}.jpg";
+        await supbase.storage
+            .from("users_images")
+            .upload(fileName, _selectedImage!);
+
+        final imageUrl =
+            supbase.storage.from("users_images").getPublicUrl(fileName);
+        print(imageUrl);
       }
     } on FirebaseAuthException catch (error) {
       if (error.code == "email-already-in-use") {}
@@ -68,6 +82,12 @@ class _AuthScreenState extends State<AuthScreen> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
+                        if (!_isLogin)
+                          UserImagePicker(
+                            onPickImage: (pickedImage) {
+                              _selectedImage = pickedImage;
+                            },
+                          ),
                         TextFormField(
                           keyboardType: TextInputType.emailAddress,
                           decoration: const InputDecoration(
